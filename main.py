@@ -1,118 +1,37 @@
 import logging
-import random
 import asyncio
-import json
-import os
-import uuid
-from datetime import datetime, time
-from telegram import (
-    Update, 
-    InlineKeyboardButton, 
-    InlineKeyboardMarkup, 
-    ReplyKeyboardMarkup, 
-    KeyboardButton
-)
-from telegram.ext import (
-    Application, 
-    CommandHandler, 
-    CallbackQueryHandler, 
-    MessageHandler, 
-    filters, 
-    ContextTypes,
-    ConversationHandler
-)
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from config.settings import TOKEN, EVENT_INTERVAL
+from handlers.handlers import start, button_handler, transfer_points, handle_message
+from features.events.events import daily_publisher
+from admin.admin_panel import admin_command
+from utils.logger import bot_logger
 
-# --- إعدادات البوت ---
-TOKEN = "YOUR_BOT_TOKEN_HERE"  # ضع توكن البوت هنا
-ADMIN_ID = 8049455831  # ضع الآيدي الخاص بك هنا
-DEVELOPER = "@ahmaddragon"
-VERSION = "1.0"
+def main():
+    bot_logger.info("--- بدء تشغيل Dragon Bot V2.0 ---")
 
-# --- إعدادات قاعدة البيانات البسيطة ---
-DB_FILE = "dragon_db.json"
+    application = Application.builder().token(TOKEN).build()
 
-def load_db():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {
-        "users": {},
-        "public_store": [],
-        "official_store": [],
-        "settings": {"active_contests": 0},
-        "stats": {"total_events": 0}
-    }
+    # الأوامر
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("transfer", transfer_points))
+    application.add_handler(CommandHandler("admin", admin_command))
 
-def save_db(db):
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
-        json.dump(db, f, ensure_ascii=False, indent=4)
+    # معالج الأزرار
+    application.add_handler(CallbackQueryHandler(button_handler))
 
-db = load_db()
+    # معالج الرسائل العامة
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# --- دوال مساعدة ---
-def get_user(user_id, username="Guest"):
-    user_id = str(user_id)
-    if user_id not in db["users"]:
-        db["users"][user_id] = {
-            "points": 0,
-            "username": username,
-            "referred_by": None,
-            "referrals": 0,
-            "items_sold": 0,
-            "joined_at": str(datetime.now())
-        }
-        save_db(db)
-    return db["users"][user_id]
+    # جدولة الفعاليات
+    job_queue = application.job_queue
+    job_queue.run_repeating(daily_publisher, interval=EVENT_INTERVAL, first=10)
 
-# --- لوحة التحكم والواجهة الرئيسية ---
-def main_menu_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("🏆 الفعاليات والمسابقات", callback_query_data="events")],
-        [InlineKeyboardButton("💰 رصيدي", callback_query_data="balance"), InlineKeyboardButton("💸 تحويل نقاط", callback_query_data="transfer")],
-        [InlineKeyboardButton("🏪 المتجر العام", callback_query_data="store_public"), InlineKeyboardButton("🏢 المتجر الرسمي", callback_query_data="store_official")],
-        [InlineKeyboardButton("🔗 نظام الإحالة", callback_query_data="referral"), InlineKeyboardButton("⚙️ حول البوت", callback_query_data="about")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    bot_logger.info("--- Dragon Bot V2.0 جاهز للعمل ---")
+    application.run_polling()
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    u_data = get_user(user.id, user.username)
-    
-    # معالجة الإحالة
-    if context.args and context.args[0].isdigit():
-        referrer_id = context.args[0]
-        if referrer_id != str(user.id) and not u_data["referred_by"]:
-            u_data["referred_by"] = referrer_id
-            db["users"][referrer_id]["points"] += 50 # جائزة الإحالة
-            db["users"][referrer_id]["referrals"] += 1
-            save_db(db)
-            await context.bot.send_message(chat_id=referrer_id, text=f"🎉 قام {user.first_name} بالانضمام عبر رابطك! حصلت على 50 نقطة.")
-
-    welcome_text = (
-        f"👋 أهلاً بك يا {user.first_name} في **Dragon Bot**\n\n"
-        f"هذا البوت هو منصتك المتكاملة للمسابقات والفعاليات.\n"
-        f"استمتع بالربح، البيع، والشراء داخل عالم التنين! 🐉\n\n"
-        f"👤 مطور البوت: {DEVELOPER}\n"
-        f"📟 الإصدار: {VERSION}\n"
-        f"⚠️ البوت قيد التطوير المستمر."
-    )
-    
-    if update.message:
-        await update.message.reply_text(welcome_text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
-    else:
-        await update.callback_query.edit_message_text(welcome_text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
-
-# --- نظام الفعاليات الآلية (النشر العشوائي) ---
-async def daily_publisher(context: ContextTypes.DEFAULT_TYPE):
-    """دالة تقوم بالنشر العشوائي 4 مرات يومياً"""
-    # سيتم تشغيلها بواسطة JobQueue
-    chats_to_post = [] # يمكن إضافة آيديات القنوات والمجموعات هنا
-    
-    event_types = ["fast_button", "question", "share_link"]
-    selected_event = random.choice(event_types)
-    
-    for chat_id in chats_to_post:
-        if selected_event == "fast_button":
+if __name__ == "__main__":
+    main()
             btn = InlineKeyboardMarkup([[InlineKeyboardButton("إضغط لتربح! ⚡️", callback_query_data="win_fast")]])
             await context.bot.send_message(chat_id, "🔥 فعالية السرعة! أول من يضغط على الزر يربح 100 نقطة!", reply_markup=btn)
         
