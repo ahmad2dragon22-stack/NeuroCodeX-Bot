@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- إعدادات البوت ---
-TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")  # استخدم متغير البيئة للأمان
+TOKEN = os.getenv("BOT_TOKEN", "8560191198:AAG2bu37V0T09herutspyLE74FLbB0Nf-kM")  # استخدم متغير البيئة للأمان
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8049455831"))  # ضع الآيدي الخاص بك هنا
 DEVELOPER = "@ahmaddragon"
 VERSION = "2.0"  # تحديث الإصدار
