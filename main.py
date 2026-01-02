@@ -12,6 +12,13 @@ def main():
 
     application = Application.builder().token(TOKEN).build()
 
+
+    async def error_handler(update, context):
+        try:
+            bot_logger.exception(f"Unhandled exception for update: {update}")
+        except Exception:
+            pass
+
     # الأوامر
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("transfer", transfer_points))
@@ -26,6 +33,9 @@ def main():
     # جدولة الفعاليات
     job_queue = application.job_queue
     job_queue.run_repeating(daily_publisher, interval=EVENT_INTERVAL, first=10)
+
+    # مسجل الأخطاء العام
+    application.add_error_handler(error_handler)
 
     bot_logger.info("--- Dragon Bot V2.0 جاهز للعمل ---")
     application.run_polling()

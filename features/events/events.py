@@ -2,7 +2,7 @@ import asyncio
 import random
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from config.settings import CHATS_TO_POST, FAST_WIN_POINTS, QUESTION_WIN_POINTS
-from database.db_manager import add_points, update_stats
+from database.db_manager import add_points, update_stats, get_stats
 from utils.helpers import get_random_question
 
 async def daily_publisher(context):
@@ -29,7 +29,7 @@ async def daily_publisher(context):
 async def send_fast_button_event(context, chat_id):
     """فعالية الزر السريع"""
     btn = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ إضغط لتربح!", callback_data="win_fast")]])
-    await context.bot.send_message(
+    msg = await context.bot.send_message(
         chat_id,
         "🔥 **فعالية السرعة الخارقة!**\n\n"
         "أول من يضغط على الزر يربح **100 نقطة**!\n"
@@ -40,8 +40,8 @@ async def send_fast_button_event(context, chat_id):
     # إزالة الفعالية بعد 30 ثانية
     await asyncio.sleep(30)
     try:
-        await context.bot.edit_message_reply_markup(chat_id, message_id=None, reply_markup=None)
-    except:
+        await context.bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg.message_id, reply_markup=None)
+    except Exception:
         pass
 
 async def send_question_event(context, chat_id):
